@@ -1,6 +1,7 @@
 import { api, LightningElement, createElement } from 'lwc';
 import { ensureMermaidLoaded } from 'shared/loader';
 import { marked } from 'shared/markdown';
+import { sanitize } from 'shared/sanitize';
 import { classSet, isEmpty, normalizeString as normalize, runActionAfterTimeOut } from 'shared/utils';
 import sldsCodeBlock from 'slds/codeBlock';
 import MarkdownViewerEditorModal from 'slds/MarkdownViewerEditorModal';
@@ -72,7 +73,7 @@ export default class MarkdownViewer extends LightningElement {
 
     setMarkdown = markdown => {
         var html = marked()(markdown);
-        this.refs.container.innerHTML = html;
+        this.refs.container.innerHTML = sanitize(html);
         runActionAfterTimeOut(html,
             async value => {
                 this.enable_codeViewer();

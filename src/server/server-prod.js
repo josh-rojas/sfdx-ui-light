@@ -2,6 +2,7 @@ require('dotenv').config();
 const fs = require('node:fs');
 
 const express = require('express');
+const { rateLimit } = require('express-rate-limit');
 const jsforce = require('jsforce');
 const qs = require('qs');
 const handler = require('serve-handler');
@@ -58,10 +59,20 @@ const checkIfPresent = (a, b) => {
     return (a || '').toLowerCase().includes((b || '').toLowerCase());
 };
 
+// Rate-limit the Salesforce proxy to prevent abuse.
+// Limits are configurable via environment variables; defaults are conservative.
+const proxyRateLimiter = rateLimit({
+    windowMs: parseInt(process.env.PROXY_RATE_WINDOW_MS || '60000', 10), // 1 minute
+    max: parseInt(process.env.PROXY_RATE_MAX || '300', 10), // 300 requests/min per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' },
+});
+
 /* CometD Proxy */
-app.all('/cometd{/*splat}', proxy({ enableCORS: true }));
+app.all('/cometd{/*splat}', proxyRateLimiter, proxy({ enableCORS: true }));
 /* jsForce Proxy */
-app.all('/proxy{/*splat}', proxy({ enableCORS: true }));
+app.all('/proxy{/*splat}', proxyRateLimiter, proxy({ enableCORS: true }));
 /* OpenAI Proxy */
 openaiProxy(app);
 

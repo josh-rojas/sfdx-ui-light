@@ -62,10 +62,11 @@ class CacheManager {
 
     async clearOrgData(orgAlias, dataType = null, key = null) {
         if (!dataType) {
-            // Clear all data for this org - would need to list all keys with this prefix and remove them
-            // This implementation depends on the capabilities of the store
-            // For now, we'll just log that this functionality would need to be implemented
-            console.warn('Clearing all org data not implemented yet');
+            // Clear all data for this org by iterating keys with the org prefix
+            const prefix = `org_${orgAlias}_`;
+            const allKeys = await this.store.keys();
+            const orgKeys = allKeys.filter(k => k && k.startsWith(prefix));
+            await Promise.all(orgKeys.map(k => this.store.removeItem(k)));
             return;
         }
 
