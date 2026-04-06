@@ -5,27 +5,44 @@
         "node": "22.14"
     },
     "scripts": {
-        "start:dev:extension": "rm -r chrome_ext; npm-run-all --parallel watch:extension serve:extension",
+        "start:dev:extension": "node scripts/clean.js && npm-run-all --parallel watch:extension serve:extension",
         "watch:extension": "rollup -c rollup.config.mjs --bundleConfigAsCjs --environment NODE_ENV:development --watch --watch.buildDelay 3000 --logLevel error",
         "serve:extension": "serve chrome_ext",
-        "start:dev:client": "npm run clean; NODE_ENV=development node -r dotenv/config src/server/server-dev.js",
-        "start:dev:workers": "rollup -c worker.rollup.config.mjs --bundleConfigAsCjs --environment NODE_ENV:development;",
-        "start:prod:client": "npm run clean; NODE_ENV=production WARMUP=true lwr build -m prod --clean; NODE_ENV=production node -r dotenv/config src/server/server-prod.js",
-        "start:prod:extension": "rm -r chrome_ext; rollup -c rollup.config.mjs --bundleConfigAsCjs --environment NODE_ENV:production; rollup -c worker.rollup.config.mjs --bundleConfigAsCjs --environment NODE_ENV:production",
-        "clean": "rm -r __lwr_cache__ site __skip_directory_creation__",
+        "start:dev:client": "npm run clean && NODE_ENV=development node -r dotenv/config src/server/server-dev.js",
+        "start:dev:workers": "rollup -c worker.rollup.config.mjs --bundleConfigAsCjs --environment NODE_ENV:development",
+        "start:prod:client": "npm run clean && NODE_ENV=production WARMUP=true lwr build -m prod --clean && NODE_ENV=production node -r dotenv/config src/server/server-prod.js",
+        "start:prod:extension": "node scripts/clean.js && rollup -c rollup.config.mjs --bundleConfigAsCjs --environment NODE_ENV:production && rollup -c worker.rollup.config.mjs --bundleConfigAsCjs --environment NODE_ENV:production",
+        "clean": "node scripts/clean.js",
         "fix:lightning": "node scripts/fix_lightning.js",
         "generate:metadata": "node scripts/generate_metadata.js",
         "script:documentation": "node scripts/load_documentation.js",
         "start:heroku": "NODE_ENV=production REDIRECT_URI=https://sf-toolkit.com/oauth2/callback node -r dotenv/config src/server/server-prod.js",
-        "heroku-postbuild": "npm run clean; NODE_ENV=production WARMUP=true lwr build -m prod --clean",
-        "start:prod:build": "npm run clean; NODE_ENV=production WARMUP=true lwr build -m prod --clean;",
+        "heroku-postbuild": "npm run clean && NODE_ENV=production WARMUP=true lwr build -m prod --clean",
+        "start:prod:build": "npm run clean && NODE_ENV=production WARMUP=true lwr build -m prod --clean",
         "start:prod:run": "NODE_ENV=production node -r dotenv/config src/server/server-prod.js",
         "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,html}\"",
         "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,json,css,scss,html}\"",
         "lint:eslint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
         "lint:eslint:fix": "eslint \"src/**/*.{js,jsx,ts,tsx}\" --fix",
         "lint": "npm run lint:eslint && npm run format:check",
-        "build:openai-bundler": "cd bundler/openai && npm install && npm run build && cp dist/* ../../src/client/assets/libs/openai/"
+        "build:openai-bundler": "cd bundler/openai && npm install && npm run build && cp dist/* ../../src/client/assets/libs/openai/",
+        "analyze:bundle": "rollup -c rollup.config.mjs --bundleConfigAsCjs --environment NODE_ENV:production,ANALYZE:true",
+        "prepare": "husky install",
+        "precommit": "lint-staged"
+    },
+    "lint-staged": {
+        "src/**/*.{js,jsx,ts,tsx}": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "src/**/*.{json,css,scss,html}": [
+            "prettier --write"
+        ]
+    },
+    "husky": {
+        "hooks": {
+            "pre-commit": "lint-staged"
+        }
     },
     "nx": {
         "targets": {
@@ -100,11 +117,14 @@
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-import": "^2.32.0",
         "eslint-plugin-prettier": "^5.5.5",
+        "husky": "^9.0.11",
+        "lint-staged": "^15.2.2",
         "lwc": "^8.20.1",
         "npm-run-all": "^4.1.5",
         "prettier": "^3.6.2",
         "rollup-plugin-copy": "^3.5.0",
         "rollup-plugin-polyfill-node": "^0.13.0",
+        "rollup-plugin-visualizer": "^5.12.0",
         "serve-handler": "^6.1.6"
     },
     "overrides": {

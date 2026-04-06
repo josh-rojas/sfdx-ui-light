@@ -8,6 +8,7 @@ import terser from '@rollup/plugin-terser';
 import copy from 'rollup-plugin-copy';
 import alias from '@rollup/plugin-alias';
 import nodePolyfills from 'rollup-plugin-polyfill-node';
+import { visualizer } from 'rollup-plugin-visualizer';
 import * as data from './package.json';
 
 const getIsProduction = (args) => (args?.NODE_ENV || process.env.NODE_ENV) === 'production';
@@ -248,7 +249,9 @@ const coreBuilder = (modulesArg, isProduction) => ({
 
 export default (args) => {
     const isProduction = getIsProduction(args);
-    return [
+    const shouldAnalyze = args?.ANALYZE === 'true' || process.env.ANALYZE === 'true';
+
+    const configs = [
         coreBuilder(modules, isProduction),
         basicBundler(
         'src/client_chrome/workers/background.js',
@@ -279,4 +282,19 @@ export default (args) => {
         null
     )
     ];
+
+    // Add bundle analyzer to first config if requested
+    if (shouldAnalyze && configs.length > 0) {
+        configs[0].plugins.push(
+            visualizer({
+                filename: 'stats.html',
+                open: true,
+                gzipSize: true,
+                brotliSize: true,
+                template: 'treemap'
+            })
+        );
+    }
+
+    return configs;
 };
