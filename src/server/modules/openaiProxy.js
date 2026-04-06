@@ -17,9 +17,13 @@ function authMiddleware(req, res, next) {
     next();
 }
 
+// Set ALLOWED_ORIGIN in the environment to restrict which origins may call the AI proxy.
+// Falls back to '*' for self-hosted deployments where no specific origin is known.
+const CORS_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
+
 function corsMiddleware(req, res, next) {
     res.set({
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': CORS_ORIGIN,
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type',
     });
@@ -34,11 +38,9 @@ function streamSSE(res, streamFn, errorFn) {
     });
     res.flushHeaders && res.flushHeaders();
     const abortController = new AbortController();
-    // To improve: when the client disconnects, abort the stream
-    /* res.req.on('close', () => {
-        console.log('--> close');
+    res.req.on('close', () => {
         abortController.abort();
-    }); */
+    });
     (async () => {
         try {
             await streamFn(abortController.signal);
@@ -80,7 +82,7 @@ function openaiProxy(app, options = {}) {
             if (body.stream) {
                 return streamSSE(
                     res,
-                    async (signal) => {
+                    async signal => {
                         for await (const chunk of openaiModel.stream(body, signal)) {
                             res.write(`data: ${JSON.stringify(chunk)}\n\n`);
                             res.flush && res.flush();
@@ -113,7 +115,7 @@ function openaiProxy(app, options = {}) {
             if (body.stream) {
                 return streamSSE(
                     res,
-                    async (signal) => {
+                    async signal => {
                         for await (const chunk of openaiModel.streamResponse(body, signal)) {
                             res.write(`data: ${JSON.stringify(chunk)}\n\n`);
                             res.flush && res.flush();
@@ -136,7 +138,7 @@ function openaiProxy(app, options = {}) {
     // GET /openai/v1/models
     app.get(`${path}/models`, (req, res, next) => {
         try {
-            const data = openaiModel.supportModels.map((model) => ({
+            const data = openaiModel.supportModels.map(model => ({
                 id: model,
                 object: 'model',
                 owned_by: openaiModel.name,

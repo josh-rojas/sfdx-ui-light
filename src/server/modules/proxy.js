@@ -16,7 +16,6 @@ const ALLOWED_HEADERS = [
     'x-sfdc-packageversion-clientPackage',
     'If-Modified-Since',
     'X-User-Agent',
-    'Cookie',
 ];
 
 // Production Salesforce domains

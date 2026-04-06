@@ -1,15 +1,16 @@
 require('dotenv').config();
 //const express = require('express');
 const fs = require('node:fs');
+
 const express = require('express');
 const jsforce = require('jsforce');
 const { createServer } = require('lwr');
 const qs = require('qs');
-const documentationSearch = require('./modules/documentationSearch');
 
 const CTA_MODULE = require('./modules/cta.js');
-const proxy = require('./modules/proxy.js');
+const documentationSearch = require('./modules/documentationSearch');
 const openaiProxy = require('./modules/openaiProxy.js');
+const proxy = require('./modules/proxy.js');
 
 /** Documentation Temporary Code until a DB is incorporated **/
 const VERSION = process.env.DOC_VERSION || '255.0';
@@ -31,7 +32,7 @@ const CHROME_ID = process.env.CHROME_ID || 'dmlgjapbfifmeopbfikbdmlgdcgcdmfb';
 // Initialize documentation search index
 //documentationSearch.initDocumentationIndex(DATA_DOCUMENTATION.contents);
 
-getOAuth2Instance = params => {
+const getOAuth2Instance = params => {
     return new jsforce.OAuth2({
         // you can change loginUrl to connect to sandbox or prerelease env.
         clientId: process.env.CLIENT_ID,
@@ -41,7 +42,7 @@ getOAuth2Instance = params => {
     });
 };
 
-checkIfPresent = (a, b) => {
+const checkIfPresent = (a, b) => {
     return (a || '').toLowerCase().includes((b || '').toLowerCase());
 };
 
@@ -53,8 +54,17 @@ const lwrServer = createServer({
 });
 
 const app = lwrServer.getInternalServer('express');
-app.use(express.json({limit: '50mb'}));
-app.use(express.urlencoded({limit: '50mb'}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb' }));
+app.use((req, res, next) => {
+    // TODO: Tighten 'unsafe-inline'/'unsafe-eval' once LWC inline scripts and
+    // the Monaco editor's eval usage have been refactored to use nonces/hashes.
+    res.set(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.salesforce.com https://*.force.com; font-src 'self' data:; frame-ancestors 'none'"
+    );
+    next();
+});
 app.use(haltOnTimedout);
 
 function haltOnTimedout(req, res, next) {
@@ -65,7 +75,7 @@ app.all('/cometd/:splat(*)', proxy({ enableCORS: true }));
 /* jsForce Proxy */
 app.all('/proxy/:splat(*)', proxy({ enableCORS: true }));
 /* OpenAI Proxy */
-openaiProxy(app,{path: '/openai/v1'});
+openaiProxy(app, { path: '/openai/v1' });
 
 app.get('/version', function (req, res) {
     res.json({ version: process.env.npm_package_version });
@@ -96,7 +106,7 @@ app.get('/documentation/search', async (req, res) => {
             id,
             name: isFullTextSearch ? doc.title : title,
             text: isFullTextSearch ? doc.content : doc.title,
-            documentationId: doc.documentationId
+            documentationId: doc.documentationId,
         }));
         res.json(mappedResults);
     } catch (error) {
@@ -108,7 +118,7 @@ app.get('/cta/search', function (req, res) {
     //console.log('DATA_CTA.contents',DATA_CTA);
     const keywords = req.query.keywords;
     const result = DATA_CTA.filter(
-        x => this.checkIfPresent(x.title, keywords) || this.checkIfPresent(x.content, keywords)
+        x => checkIfPresent(x.title, keywords) || checkIfPresent(x.content, keywords)
     ).map(x => ({
         url: x.link,
         content: x.content,
@@ -208,11 +218,11 @@ app.post('/generatejwt', async (req, res) => {
 /** LWR Server **/
 
 lwrServer
-.listen(({ port, serverMode }) => {
-    console.log(`✅ App listening on port ${port} in ${serverMode} mode!`);
-    console.log(`Url http://localhost:${port}`);
-})
-.catch(err => {
-    console.error(err);
-    process.exit(1);
-});
+    .listen(({ port, serverMode }) => {
+        console.log(`✅ App listening on port ${port} in ${serverMode} mode!`);
+        console.log(`Url http://localhost:${port}`);
+    })
+    .catch(err => {
+        console.error(err);
+        process.exit(1);
+    });

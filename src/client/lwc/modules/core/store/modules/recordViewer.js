@@ -22,7 +22,6 @@ function loadCacheSettings(alias) {
 }
 
 function saveCacheSettings(alias, state) {
-    console.log('saveCacheSettings');
     try {
         const { tabs, recentPanelToggled } = state;
 

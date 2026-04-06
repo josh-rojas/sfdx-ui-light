@@ -113,29 +113,26 @@ class CacheManager {
     }
 
     async loadConfig(keys) {
-        const configuration = {};
+        const entries = await Promise.all(
+            keys.map(async key => {
+                const cachedValue = await this.settingsStore.getItem(key);
 
-        for await (const key of keys) {
-            const cachedValue = await this.settingsStore.getItem(key);
-
-            // If we have a value in cache, use it
-            if (isNotUndefinedOrNull(cachedValue)) {
-                configuration[key] = cachedValue;
-            } else {
+                // If we have a value in cache, use it
+                if (isNotUndefinedOrNull(cachedValue)) {
+                    return [key, cachedValue];
+                }
                 // Otherwise, look for a default value in CACHE_CONFIG using our map
                 const configObj = this.getConfigKeyMap()[key];
-                configuration[key] = configObj ? configObj.defaultValue : null;
-            }
-        }
-
-        return configuration;
+                return [key, configObj ? configObj.defaultValue : null];
+            })
+        );
+        return Object.fromEntries(entries);
     }
 
     async saveConfig(config) {
-        const keys = Object.keys(config);
-        for await (const key of keys) {
-            await this.settingsStore.setItem(key, config[key]);
-        }
+        await Promise.all(
+            Object.entries(config).map(([key, value]) => this.settingsStore.setItem(key, value))
+        );
     }
 }
 
