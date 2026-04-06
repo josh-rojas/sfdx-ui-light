@@ -11,6 +11,7 @@ import {
 } from 'shared/utils';
 import { CurrentPageReference, NavigationContext, generateUrl, navigate } from 'lwr/navigation';
 import { ensureMermaidLoaded } from 'shared/loader';
+import { sanitize } from 'shared/sanitize';
 import { connectStore, store as legacyStore, store_application } from 'shared/store';
 import sldsCodeBlock from 'slds/codeBlock';
 
@@ -342,7 +343,7 @@ export default class App extends ToolkitElement {
             }
         }
 
-        this.refs.container.innerHTML = formattedContent;
+        this.refs.container.innerHTML = sanitize(formattedContent);
         this.applyFilterOnTable(this.filter);
         this.buildUML();
         this.transformCodeBlockToComponents();

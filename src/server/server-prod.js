@@ -2,6 +2,7 @@ require('dotenv').config();
 const fs = require('node:fs');
 
 const express = require('express');
+const { rateLimit } = require('express-rate-limit');
 const jsforce = require('jsforce');
 const qs = require('qs');
 const handler = require('serve-handler');
@@ -9,9 +10,9 @@ const handler = require('serve-handler');
 const serveJson = require('../../site/serve.json');
 
 const CTA_MODULE = require('./modules/cta.js');
-const proxy = require('./modules/proxy.js');
 const documentationSearch = require('./modules/documentationSearch');
 const openaiProxy = require('./modules/openaiProxy.js');
+const proxy = require('./modules/proxy.js');
 
 /** Temporary Code until a DB is incorporated **/
 const VERSION = process.env.DOC_VERSION || '255.0';
@@ -30,12 +31,21 @@ CTA_MODULE.launchScheduleFileDownloaded(files => {
 documentationSearch.initDocumentationIndex(DATA_DOCUMENTATION.contents);
 
 const app = express();
-app.use(express.json({limit: '50mb'}));
-app.use(express.urlencoded({limit: '50mb'}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb' }));
+app.use((req, res, next) => {
+    // TODO: Tighten 'unsafe-inline'/'unsafe-eval' once LWC inline scripts and
+    // the Monaco editor's eval usage have been refactored to use nonces/hashes.
+    res.set(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.salesforce.com https://*.force.com; font-src 'self' data:; frame-ancestors 'none'"
+    );
+    next();
+});
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const CHROME_ID = process.env.CHROME_ID || 'dmlgjapbfifmeopbfikbdmlgdcgcdmfb';
 
-getOAuth2Instance = params => {
+const getOAuth2Instance = params => {
     return new jsforce.OAuth2({
         // you can change loginUrl to connect to sandbox or prerelease env.
         clientId: process.env.CLIENT_ID,
@@ -45,14 +55,24 @@ getOAuth2Instance = params => {
     });
 };
 
-checkIfPresent = (a, b) => {
+const checkIfPresent = (a, b) => {
     return (a || '').toLowerCase().includes((b || '').toLowerCase());
 };
 
+// Rate-limit the Salesforce proxy to prevent abuse.
+// Limits are configurable via environment variables; defaults are conservative.
+const proxyRateLimiter = rateLimit({
+    windowMs: parseInt(process.env.PROXY_RATE_WINDOW_MS || '60000', 10), // 1 minute
+    max: parseInt(process.env.PROXY_RATE_MAX || '300', 10), // 300 requests/min per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' },
+});
+
 /* CometD Proxy */
-app.all('/cometd{/*splat}', proxy({ enableCORS: true }));
+app.all('/cometd{/*splat}', proxyRateLimiter, proxy({ enableCORS: true }));
 /* jsForce Proxy */
-app.all('/proxy{/*splat}', proxy({ enableCORS: true }));
+app.all('/proxy{/*splat}', proxyRateLimiter, proxy({ enableCORS: true }));
 /* OpenAI Proxy */
 openaiProxy(app);
 
@@ -134,7 +154,7 @@ app.get('/documentation/search', async (req, res) => {
             id,
             name: isFullTextSearch ? doc.title : title,
             text: isFullTextSearch ? doc.content : doc.title,
-            documentationId: doc.documentationId
+            documentationId: doc.documentationId,
         }));
         res.json(mappedResults);
     } catch (error) {
@@ -146,7 +166,7 @@ app.get('/cta/search', function (req, res) {
     //console.log('DATA_CTA.contents',DATA_CTA);
     const keywords = req.query.keywords;
     const result = DATA_CTA.filter(
-        x => this.checkIfPresent(x.title, keywords) || this.checkIfPresent(x.content, keywords)
+        x => checkIfPresent(x.title, keywords) || checkIfPresent(x.content, keywords)
     ).map(x => ({
         url: x.link,
         content: x.content,

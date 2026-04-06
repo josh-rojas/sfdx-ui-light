@@ -62,10 +62,11 @@ class CacheManager {
 
     async clearOrgData(orgAlias, dataType = null, key = null) {
         if (!dataType) {
-            // Clear all data for this org - would need to list all keys with this prefix and remove them
-            // This implementation depends on the capabilities of the store
-            // For now, we'll just log that this functionality would need to be implemented
-            console.warn('Clearing all org data not implemented yet');
+            // Clear all data for this org by iterating keys with the org prefix
+            const prefix = `org_${orgAlias}_`;
+            const allKeys = await this.store.keys();
+            const orgKeys = allKeys.filter(k => k && k.startsWith(prefix));
+            await Promise.all(orgKeys.map(k => this.store.removeItem(k)));
             return;
         }
 
@@ -113,29 +114,26 @@ class CacheManager {
     }
 
     async loadConfig(keys) {
-        const configuration = {};
+        const entries = await Promise.all(
+            keys.map(async key => {
+                const cachedValue = await this.settingsStore.getItem(key);
 
-        for await (const key of keys) {
-            const cachedValue = await this.settingsStore.getItem(key);
-
-            // If we have a value in cache, use it
-            if (isNotUndefinedOrNull(cachedValue)) {
-                configuration[key] = cachedValue;
-            } else {
+                // If we have a value in cache, use it
+                if (isNotUndefinedOrNull(cachedValue)) {
+                    return [key, cachedValue];
+                }
                 // Otherwise, look for a default value in CACHE_CONFIG using our map
                 const configObj = this.getConfigKeyMap()[key];
-                configuration[key] = configObj ? configObj.defaultValue : null;
-            }
-        }
-
-        return configuration;
+                return [key, configObj ? configObj.defaultValue : null];
+            })
+        );
+        return Object.fromEntries(entries);
     }
 
     async saveConfig(config) {
-        const keys = Object.keys(config);
-        for await (const key of keys) {
-            await this.settingsStore.setItem(key, config[key]);
-        }
+        await Promise.all(
+            Object.entries(config).map(([key, value]) => this.settingsStore.setItem(key, value))
+        );
     }
 }
 

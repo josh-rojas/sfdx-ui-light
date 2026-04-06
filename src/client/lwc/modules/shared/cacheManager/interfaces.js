@@ -42,6 +42,13 @@ const chromeStore = (variant = 'local') => {
                 });
             });
         },
+        keys: function () {
+            return new Promise((resolve, reject) => {
+                chrome.storage[variant].get(null, function (items) {
+                    resolve(Object.keys(items));
+                });
+            });
+        },
     };
 };
 
@@ -58,9 +65,13 @@ const basicStore = (variant = 'local') => {
             //console.log('--> getItem <---',key,value);
             const parsedValue = safeParseJson(value);
             if (callback) {
-                callback(isNotUndefinedOrNull(parsedValue) && parsedValue != 'null' ? parsedValue : null); // 'null' is related to legacy code
+                callback(
+                    isNotUndefinedOrNull(parsedValue) && parsedValue != 'null' ? parsedValue : null
+                ); // 'null' is related to legacy code
             }
-            return Promise.resolve(isNotUndefinedOrNull(parsedValue) && parsedValue != 'null' ? parsedValue : null); // 'null' is related to legacy code
+            return Promise.resolve(
+                isNotUndefinedOrNull(parsedValue) && parsedValue != 'null' ? parsedValue : null
+            ); // 'null' is related to legacy code
         },
         setItem: function (key, value, callback) {
             try {
@@ -79,6 +90,13 @@ const basicStore = (variant = 'local') => {
                 callback();
             }
             return Promise.resolve();
+        },
+        keys: function () {
+            const keys = [];
+            for (let i = 0; i < storage.length; i++) {
+                keys.push(storage.key(i));
+            }
+            return Promise.resolve(keys);
         },
     };
 };

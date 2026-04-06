@@ -1,5 +1,6 @@
 import { api, LightningElement } from 'lwc';
 import { marked } from 'shared/markdown';
+import { sanitize } from 'shared/sanitize';
 import { isEmpty } from 'shared/utils';
 
 export default class MarkdownViewer extends LightningElement {
@@ -60,7 +61,7 @@ export default class MarkdownViewer extends LightningElement {
                     .replace(regex, `$1<span style="font-weight:Bold; color:blue;">$2</span>`);
             }
         }
-        this.refs.container.innerHTML = html;
+        this.refs.container.innerHTML = sanitize(html);
     }
 
     replaceLinks = content => {

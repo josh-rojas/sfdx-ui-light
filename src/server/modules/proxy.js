@@ -1,4 +1,4 @@
-const request = require('request');
+const { Readable } = require('node:stream');
 
 /**
  * Allowed request headers
@@ -16,7 +16,6 @@ const ALLOWED_HEADERS = [
     'x-sfdc-packageversion-clientPackage',
     'If-Modified-Since',
     'X-User-Agent',
-    'Cookie',
 ];
 
 // Production Salesforce domains
@@ -31,7 +30,7 @@ const SF_DEV_ENDPOINT_REGEXP =
  * Create middleware to proxy request to Salesforce server
  */
 module.exports = function (options = {}) {
-    return (req, res) => {
+    return async (req, res) => {
         if (options.enableCORS) {
             res.set({
                 'Access-Control-Allow-Origin': options.allowedOrigin || '*',
@@ -63,16 +62,45 @@ module.exports = function (options = {}) {
             return acc;
         }, {});
 
-        const requestOptions = {
-            url: sfEndpoint || 'https://login.salesforce.com/services/oauth2/token',
-            method: req.method,
-            headers,
-        };
+        // Build request body: re-serialize JSON bodies parsed by express middleware,
+        // or collect raw bytes for XML/SOAP and other content types.
+        let body;
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            const contentType = (req.get('content-type') || '').toLowerCase();
+            if (contentType.includes('application/json') && req.body !== undefined) {
+                body = JSON.stringify(req.body);
+            } else {
+                const chunks = [];
+                for await (const chunk of req) {
+                    chunks.push(chunk);
+                }
+                if (chunks.length > 0) {
+                    body = Buffer.concat(chunks);
+                }
+            }
+        }
 
-        req.pipe(request(requestOptions))
-            .on('error', error => {
-                res.status(500).send('An error occurred while proxying the request.');
-            })
-            .pipe(res);
+        const targetUrl = sfEndpoint || 'https://login.salesforce.com/services/oauth2/token';
+        try {
+            const response = await fetch(targetUrl, {
+                method: req.method,
+                headers,
+                body,
+            });
+
+            res.status(response.status);
+            // Forward the Salesforce API usage header when present
+            const limitInfo = response.headers.get('sforce-limit-info');
+            if (limitInfo) {
+                res.set('SForce-Limit-Info', limitInfo);
+            }
+            if (response.body) {
+                Readable.fromWeb(response.body).pipe(res);
+            } else {
+                res.end();
+            }
+        } catch (error) {
+            res.status(500).send('An error occurred while proxying the request.');
+        }
     };
 };
